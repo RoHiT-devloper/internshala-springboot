@@ -1,23 +1,62 @@
 version: 2.1
 
-jobs:
-  deploy:
+executors:
+  default-executor:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/openjdk:17.0   # Java 17 + Maven pre-installed
+    working_directory: ~/repo
+
+jobs:
+  build:
+    executor: default-executor
     steps:
       - checkout
+
+      - run:
+          name: Build JAR with Maven
+          command: mvn clean package -DskipTests
+
+      - setup_remote_docker:
+          version: 20.10.14
+
+      - run:
+          name: Build Docker Image
+          command: |
+            docker build -t $DOCKERHUB_USERNAME/myapp:latest .
+
+      - run:
+          name: Push Docker Image to DockerHub
+          command: |
+            echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+            docker push $DOCKERHUB_USERNAME/myapp:latest
+
+  deploy:
+    executor: default-executor
+    steps:
+      - checkout
+
       - run:
           name: Install kubectl
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
+
+      - run:
+          name: Configure Kubernetes (auth)
+          command: |
+            echo "$KUBECONFIG_FILE" > kubeconfig.yaml
+            export KUBECONFIG=kubeconfig.yaml
+
       - run:
           name: Deploy to Kubernetes
-          command: |
-            kubectl apply -f k8s-deployment.yml
+          command: kubectl apply -f k8s-deployment.yml
 
 workflows:
-  deploy-workflow:
+  version: 2
+  build_and_deploy:
     jobs:
-      - deploy
+      - build
+      - deploy:
+          requires:
+            - build
