@@ -28,5 +28,5 @@ jobs:
 
       - name: Build & Push Docker image
         run: |
-          docker build -t your-dockerhub-username/internshala-springboot:latest .
-          docker push your-dockerhub-username/internshala-springboot:latest
+          docker build -t rohitdutta/internshala-springboot:latest .
+          docker push rohitdutta/internshala-springboot:latest
